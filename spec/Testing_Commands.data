@@ -1,0 +1,4 @@
+	{"HCI_Read_Loopback_Mode",0x01,0},
+	{"HCI_Write_Loopback_Mode",0x02,1,{{"Loopback_Mode",1}}},
+	{"HCI_Enable_Device_Under_Test_Mode",0x03,0},
+	

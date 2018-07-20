@@ -1,0 +1,8 @@
+	{"HCI_Read_Local_Version_Information",0x01,0},
+	{"HCI_Read_Local_Supported_Commands",0x02,0},
+	{"HCI_Read_Local_Supported_Features",0x03,0},
+	{"HCI_Read_Buffer_Size",0x05,0},
+	{"HCI_Read_Country_Code",0x07,0},
+	{"HCI_Read_BD_ADDR",0x09,0},
+	{"HCI_Read_Data_Block_Size",0x0A,0},
+

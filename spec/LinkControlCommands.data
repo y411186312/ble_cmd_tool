@@ -1,0 +1,4 @@
+	{"HCI_Disconnect",0x06,2,{{"Connection_Handle",2},{"Reason", 1}}},
+	{"HCI_Read_Remote_Supported_Features",0x1B,1,{{"Connection_Handle",2}}},
+	{"HCI_Read_Remote_Version_Information",0x1D,1,{{"Connection_Handle",2}}},
+

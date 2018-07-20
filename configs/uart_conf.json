@@ -1,0 +1,7 @@
+{
+	"port":"COM4",
+	"baudrate":115200,
+	"stopbits":1,
+	"parity":"N",
+	"timeout":2
+}

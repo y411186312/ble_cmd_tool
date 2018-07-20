@@ -1,0 +1,14 @@
+{
+	"LE_Connection_Complete": "0x01",
+	"LE_Advertising_Report":"0x02",
+	"LE_Connection_Update_Complete":"0x03",
+	"LE_Read_Remote_Used_Features_Complete":"0x04",
+	"LE_Long_Term_Key_Request":"0x05",
+	"Remote_Connection_Parameter_Request_Event":"0x06",
+	"LE_Data_Length_Change_Event":"0x07",
+	"LE_Read_Local_P256_Public_Key_Complete_Event":"0x08",
+	"LE_Generate_DHKey_Complete_Event":"0x09",
+	"LE_Enhanced_Connection_Complete":"0x0a",
+	"LE_Directed_Adv_Report":"0x0b",
+	"LE_PHY_Update_Complete":"0x0c"
+}
