@@ -74,7 +74,7 @@ def main(argv):
 	mainArgObj._inputClsObj._input_add_cmd_name("adv_list")
 	
 	#2. Create Process to display event/acl data
-	os.system("cmd/c start ble_event_transfer.exe")
+	os.system("cmd/c start ble_event_transfer.py")
 	time.sleep(0.2)
 	
 	#3. Create thread

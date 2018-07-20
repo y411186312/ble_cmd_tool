@@ -35,7 +35,7 @@ def acl_main(mainArgObj):
 	aclSendObj = comm_cls.HCI_ACL_SEND_DATA_INFO_CLASS()
 	aclThread = None
 	
-	os.system("cmd/c start ble_calc_transfer.exe")
+	os.system("cmd/c start ble_calc_transfer.py")
 	#back tab list str
 	tabListPtr = mainArgObj._inputClsObj._input_get_tablist()
 	backTabList = []
