@@ -43,6 +43,7 @@ class HCI_CONNECT_EVENT_CLASS(object):	# if get LE_Connection_Complete event wil
 		self._subEventCode = 0	#1B 
 		self._status = 1		#1B default '1' could not be used, 0 for ok. 
 		self._connectHandle = 0	#2B integer
+		self._NumOfCompletePackets = 1		# for acl send...
 		self._role = 0			#1B int, 0for master 1 for slave
 		self._peerAddrType = 0	#1B int
 		self._bdAddr = []		#6B 
@@ -115,6 +116,11 @@ class HCI_ADV_DEVICE_CLASS(object):
 		self._advData = []
 		self._rssi = 0
 
+class HCI_BUFFER_SIZE_CLASS(object):
+	def __init__(self):
+		self._bufSize = 0
+		self._bufNum = []
+		
 class HCI_DEBUG_CLASS:
 	def __init__(self, debug):
 		self._debug = debug
@@ -131,6 +137,9 @@ class HCI_DEBUG_CLASS:
 
 class MAIN_ARGS_CLASS(object):
 	def __init__(self, uartConfigPath, logFolder, resFolder, bleSubEvtJsonFPath, cmdBufFilePath, debugFlag):
+		#self._bufferSize = 0
+		#self._bufferNum = 0
+		
 		self._connectionList = []	#HCI_CONNECT_EVENT_CLASS obj list
 		self._advDeviceList = []	#HCI_ADV_DEVICE_CLASS obj list
 		self._parser2AclQueue = Queue.Queue()	#send start time
@@ -138,13 +147,14 @@ class MAIN_ARGS_CLASS(object):
 		self._recv2ParserQueue = Queue.Queue()	#send time and recv_data
 		self._parser2MainQueue = Queue.Queue()	#send exec results of cmd
 		#self._parser2MainQueue = Queue.Queue()	#send exec results of cmd
+		self._linkBufObj = HCI_BUFFER_SIZE_CLASS()
 		self._ctlThreadObj = MAIN_ARGS_CTL_THREAD_OBJECT()
 		self._socketClientObj = MAIN_ARGS_SOCKET_OBJECT()
 				
 		self._logMutex = threading.Lock()
 		self._logClsObj = log_func.logOprClass(logFolder, "event", self._logMutex)
 		self._uartClsObj = uart_func.uartOprClass(uartConfigPath)
-		self._parserClsObj = parser_func.parserOprClass(resFolder, bleSubEvtJsonFPath, self._connectionList, self._advDeviceList)
+		self._parserClsObj = parser_func.parserOprClass(self._linkBufObj, resFolder, bleSubEvtJsonFPath, self._connectionList, self._advDeviceList)
 		self._cmdBufClsObj = buf_func.cmdBufferOprClass(cmdBufFilePath)
 		self._inputClsObj = input_func.inputOprClass()
 		self._debugClsObj = HCI_DEBUG_CLASS(debugFlag)

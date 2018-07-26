@@ -1,4 +1,5 @@
     {"HCI_LE_Set_Event_Mask",0x01,1,{{"Status",1}}},
+	{"HCI_LE_Read_Buffer_Size",0x02,3,{{"Status",1},{"HC_LE_ACL_Data_Packet_Length",2},{"HC_Total_Num_LE_ACL_Data_Packets",1}}},
     {"HCI_LE_Read_Local_Supported_Features",0x03,2,{{"Status",1},{"LE_Features",8}}},
     {"HCI_LE_Set_Random_Address",0x05,1,{{"Status",1}}},
     {"HCI_LE_Set_Advertising_Parameters",0x06,1,{{"Status",1}}},

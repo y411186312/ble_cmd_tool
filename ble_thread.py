@@ -11,7 +11,7 @@ from  socket import *
 #aclSendQueue for acl_header, get data from mainThread. data is class 
 #aclSendObj<mainThread->this:call> HCI_ACL_SEND_DATA_INFO_CLASS
 #type: 0 for recv, 1 for ack
-def thread_acl_send(type, connectList, ctlObj, socketClientObj, uartObj, aclSendObj, eventLogObj, fromParserQueue):
+def thread_acl_send(type, connectList, ctlObj, socketClientObj, uartObj, aclSendObj, eventLogObj, linkBufObj, fromParserQueue):
 	name = sys._getframe().f_code.co_name
 	needQuit = False
 	hasFoundConnet = False
@@ -20,7 +20,7 @@ def thread_acl_send(type, connectList, ctlObj, socketClientObj, uartObj, aclSend
 	curLen = 0
 	interval = 0	
 	allTime = 0
-	
+	sendAclPacketCntPerUart = 2
 	for connect in connectList:
 		if connect._connectHandle == aclSendObj._connectionHandle:
 			hasFoundConnet = True
@@ -68,66 +68,199 @@ def thread_acl_send(type, connectList, ctlObj, socketClientObj, uartObj, aclSend
 			
 	elif type == comm_cls.ACK_RECV_ACK_FLAG: #for send acl data
 		totalLen = aclSendObj._packetSize * aclSendObj._packetCnt
-		hasAck = False
-		value = 0
 		
-		for i in range(aclSendObj._packetCnt):
+		value = 0
+		#ACK_SKIP_COUNT = 100
+		#noAckCnt = 0
+		#sendDataSize = 0
+
+		sendPacketCount = 0
+		sendAclStartTime = time.clock()
+		
+		isFirst = True
+		while sendPacketCount < aclSendObj._packetCnt:
+			if isFirst == True:
+				isFirst = False
+				curPackets = linkBufObj._bufNum
+			else:
+				curPackets = connect._NumOfCompletePackets
+			#aclSendObj._packetCnt - sendPacketCount
+			#if curPackets > 2:
+			#	curPackets = curPackets - 1
+			#if aclSendObj._packetCnt - sendPacketCount > connect._NumOfCompletePackets:
+			#	curPackets = connect._NumOfCompletePackets
+				
+			if sendPacketCount + curPackets >= aclSendObj._packetCnt:
+				curPackets = aclSendObj._packetCnt - sendPacketCount
+				
+			#eventLogObj._log_write("\n\t-----" + "connect._NumOfCompletePackets:" + str(connect._NumOfCompletePackets))
+			sendPacketCount += curPackets
 			sendDataList = []
+			#eventLogObj._log_write("\n\tsendPacketCount: " + str(sendPacketCount) + "_curPackets:" +str(curPackets))
+			#2. send data
+			for i in range(curPackets):
+				sendDataList = []
+				curLen += aclSendObj._packetSize
+				#2.1 add header
+				sendDataList.append(hex(aclSendObj._type))
+				sendDataList.append(hex(aclSendObj._connectionHandle & 0xff))
+				sendDataList.append(hex( ((aclSendObj._connectionHandle >> 8) & 0xf) | ((aclSendObj._pbFlag & 0x3) << 4) | ((aclSendObj._bcFlag & 0x3) << 6) ))
+				#print "aclSendObj._connectionHandle:",aclSendObj._connectionHandle
+				#print "aclSendObj._pbFlag:",aclSendObj._pbFlag
+				#print "aclSendObj._bcFlag:",aclSendObj._bcFlag
+				
+				sendDataList.append(hex(aclSendObj._packetSize & 0xff) )
+				sendDataList.append(hex((aclSendObj._packetSize >> 8) & 0xff) )
+				"""
+				sendDataSize += aclSendObj._packetSize
+				sendDataList.append(hex((sendDataSize >> 0) & 0xff))
+				sendDataList.append(hex((sendDataSize >> 8) & 0xff))
+				sendDataList.append(hex((sendDataSize >> 16) & 0xff))
+				sendDataList.append(hex((sendDataSize >> 24) & 0xff))
+				"""
+				
+				#2.2 fill data
+				for j in range(aclSendObj._packetSize):
+					sendDataList.append(hex(value))
+					if value >= 0xff:
+						value = 0
+					else:
+						value += 1
+				#eventLogObj._log_write("\n\t" + "ready interval:" + str(readyDataEnd - readyDataStart))
+				#eventLogObj._log_write("\n\t" + "readyDataAll:" + str(readyDataAll))
+				#2.3 get start time
+				startTime = time.clock()
+				
+				#2.4 send data by uart
+				#"""
+				eventLogObj._log_write('\n' + '[ ' + str(datetime.datetime.now()) + ' ] TX ----> ACL data\n' +  \
+									   '\n\t' + 'ACL Packet Len : ' + str(len(sendDataList)) + \
+									   '\n\t' + 'ACL Send Data:' + ','.join(sendDataList))
+				#"""
+				connect._sendComplete = False
+				uartStartTime = time.clock()
+				if uartObj._uart_send(sendDataList) == False:
+					eventLogObj._log_write_emerge(name + ":" + "Failed to _uart_send")
+					break	#exit thread
+				allTime = time.clock() - sendAclStartTime
+				sockSendStr = 'send'
+				sockSendStr = sockSendStr + ',' + hex(totalLen)
+				sockSendStr = sockSendStr + ',' + hex(curLen)
+				sockSendStr = sockSendStr + ',' + str(allTime)
+				socketClientObj._sockClient.sendto(sockSendStr, socketClientObj._rateSockAddr)
+			
+			#3 wait ack
+			hasAck = False
+			waitLoopTimes = 0
+			while True:
+				waitLoopTimes += 1
+				loopStartTime = time.clock()
+				if connect._sendThreadQuit == True:
+					needQuit = True
+					break
+				if connect._sendComplete == True:
+					hasAck = True
+					break
+			#eventLogObj._log_write("\n-------------eventLogObj._log_write:" + str(waitLoopTimes))
+			if needQuit == True:
+				break
+				
+			"""
+			#for i in range(0, aclSendObj._packetCnt):
+			sendDataList = []
+			readyDataStart =  time.clock()
+			
 			#1. add header
 			sendDataList.append(hex(aclSendObj._type))
 			sendDataList.append(hex(aclSendObj._connectionHandle & 0xff))
 			sendDataList.append(hex( ((aclSendObj._connectionHandle >> 8) & 0x7) | ((aclSendObj._pbFlag & 0x3) << 4) | ((aclSendObj._pbFlag & 0x3) << 6) ))
 			sendDataList.append(hex(aclSendObj._packetSize & 0xff) )
 			sendDataList.append(hex((aclSendObj._packetSize >> 8) & 0xff) )
-		
+			sendDataSize += aclSendObj._packetSize
+			sendDataList.append(hex((sendDataSize >> 0) & 0xff))
+			sendDataList.append(hex((sendDataSize >> 8) & 0xff))
+			sendDataList.append(hex((sendDataSize >> 16) & 0xff))
+			sendDataList.append(hex((sendDataSize >> 24) & 0xff))
+			
 			#2. fill data
-			for j in range(aclSendObj._packetSize):
+			for j in range(aclSendObj._packetSize - 4):
 				sendDataList.append(hex(value))
 				if value >= 0xff:
 					value = 0
 				else:
 					value += 1
-					
+			readyDataEnd =  time.clock()
+			readyDataAll += (readyDataEnd - readyDataStart)
+			eventLogObj._log_write("\n\t" + "ready interval:" + str(readyDataEnd - readyDataStart))
+			eventLogObj._log_write("\n\t" + "readyDataAll:" + str(readyDataAll))
 			#3. get start time
 			startTime = time.clock()
 			
 			#4. send data by uart
-			eventLogObj._log_write('\n' + '[ ' + str(datetime.datetime.now()) + ' ] TX ----> ACL data\n' +  \
-			                       '\n\t' + 'ACL Packet Len : ' + str(len(sendDataList)) + \
-								   '\n\t' + 'ACL Send Data:' + ','.join(sendDataList))
+
+			connect._sendComplete = False
+			uartStartTime = time.clock()
 			if uartObj._uart_send(sendDataList) == False:
 				eventLogObj._log_write_emerge(name + ":" + "Failed to _uart_send")
 				break	#exit thread
+			uartEndTime = time.clock()
+			uartAllTime += (uartEndTime - uartStartTime)
+			#######
 			
+			loopStartTime = time.clock()
+			if connect._sendThreadQuit == True:
+				needQuit = True
+				break
+			interval = loopStartTime - startTime
+			curLen += aclSendObj._packetSize
+			allTime += interval
+			
+			sockSendStr = 'send'
+			sockSendStr = sockSendStr + ',' + hex(totalLen)
+			sockSendStr = sockSendStr + ',' + hex(curLen)
+			sockSendStr = sockSendStr + ',' + str(allTime)
+			socketClientObj._sockClient.sendto(sockSendStr, socketClientObj._rateSockAddr)
+
 			#5. wait ack
+			ackStartTime = time.clock()
+			curLen += aclSendObj._packetSize
 			hasAck = False
+			waitLoopTimes = 0
 			while True:
+				waitLoopTimes += 1
 				loopStartTime = time.clock()
 				if connect._sendThreadQuit == True:
 					needQuit = True
 					break
-				
-				while fromParserQueue.qsize() > 0:
-					dataFromParser = fromParserQueue.get()
-					if dataFromParser._handle == aclSendObj._connectionHandle and dataFromParser._type == comm_cls.ACK_RECV_ACK_FLAG:
-						curLen += aclSendObj._packetSize
-						interval = time.clock() - startTime
-						hasAck = True
-				if hasAck != True:
-					interval = time.clock() - loopStartTime
+				if connect._sendComplete == True:
+					hasAck = True
+					break
+			ackEndTime = time.clock()
+			ackAllTime += (ackEndTime - ackStartTime)
+			
+			eventLogObj._log_write("\n-------------eventLogObj._log_write:" + str(waitLoopTimes))
+			interval = time.clock() - startTime
+			
+	
+			allTime += interval
+			
+			sockSendStr = 'send'
+			sockSendStr = sockSendStr + ',' + hex(totalLen)
+			sockSendStr = sockSendStr + ',' + hex(curLen)
+			sockSendStr = sockSendStr + ',' + str(allTime)
+			socketClientObj._sockClient.sendto(sockSendStr, socketClientObj._rateSockAddr)
+		
 					
-				allTime += interval
-				
-				sockSendStr = 'send'
-				sockSendStr = sockSendStr + ',' + hex(totalLen)
-				sockSendStr = sockSendStr + ',' + hex(curLen)
-				sockSendStr = sockSendStr + ',' + str(allTime)
-				socketClientObj._sockClient.sendto(sockSendStr, socketClientObj._rateSockAddr)
-				if hasAck:
-					break	#quit waiting
-				continue
+			continue
+			
 			if needQuit == True:
 				break
+				
+		sendEndTime = time.clock()
+		eventLogObj._log_write("\n\t all send time = "+ str(sendEndTime - sendStartTime))
+		eventLogObj._log_write("\n\t ackAllTime = "+ str(ackAllTime))
+		eventLogObj._log_write("\n\t uartSendAllTime = "+ str(uartAllTime))
+		"""
 	else:
 		eventLogObj._log_write_emerge(name + ":" + "Error type")
 
@@ -145,6 +278,7 @@ def thread_recv_data(ctlObj, uartObj, eventLogObj, toParserQueue, debugObj):
 		if recvDataList == None:	#no data been read
 			continue
 		else:
+			#eventLogObj._log_write('\n' + name + "Recv origin Data :" + str(recvDataList))
 			recvDataList = remainDataList + recvDataList
 			remainDataList = []
 		
@@ -254,17 +388,6 @@ def thread_parser(ctlObj, socketClientObj, parserObj, eventLogObj, to_acl_queue,
 				toAclQueueData._recvLen = int(tempMsgObj._dataList[3], 16) & 0xff
 				toAclQueueData._recvLen != ((int(tempMsgObj._dataList[4], 16) & 0xff) << 8)
 				to_acl_queue.put(toAclQueueData)
-				
-			elif eventCode == 0x13:		
-				#2.1.2.2 recv ack of ACL send
-				toAclQueueData = comm_cls.HCI_QUEUE_PARSER_2_ACL_CLASS()
-				toAclQueueData._type = comm_cls.ACK_RECV_ACK_FLAG	# 0 for data, 1 for ack
-				toAclQueueData._time = tempMsgObj._time
-				toAclQueueData._dateTimeStr = tempMsgObj._dateTimeStr
-				toAclQueueData._handle = int(tempMsgObj._dataList[4], 16) & 0xff
-				toAclQueueData._handle != ((int(tempMsgObj._dataList[5], 16) & 0xf) << 8)
-				to_acl_queue.put(toAclQueueData)
-				
 			elif eventCode == 0x0f or eventCode == 0x0e:
 				#2.1.2.3 recv cmd return parameters, to mainThread to display.
 				to_main_queue.put(parserOutStr)	#

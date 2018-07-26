@@ -129,13 +129,14 @@ def acl_main(mainArgObj):
 										mainArgObj._uartClsObj, \
 										aclSendObj, \
 										mainArgObj._logClsObj, \
+										mainArgObj._linkBufObj, \
 										mainArgObj._parser2AclQueue,))
 										
 			aclThread.start()
 			
 				
 			
-				
+		#mainArgObj._linkBufObj
 		elif cmp(user_in, "send_data") == 0:
 			if aclThread != None and aclThread.isAlive():
 				print "acl is sending, please be waiting..."
@@ -178,6 +179,7 @@ def acl_main(mainArgObj):
 										mainArgObj._uartClsObj, \
 										aclSendObj, \
 										mainArgObj._logClsObj, \
+										mainArgObj._linkBufObj, \
 										mainArgObj._parser2AclQueue, ))
 			aclThread.start()
 		elif cmp(user_in, "rev_data") == 0:

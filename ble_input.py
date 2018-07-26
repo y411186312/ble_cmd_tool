@@ -71,51 +71,46 @@ class inputOprClass:
 	def _input_get_input_data(self, cmdStr, bufDataList):
 		outputList = []
 		paraByteList = []
-		has_no_buffer = False
-		
-		if bufDataList != None:
-			#means has buffer data
-			if len(bufDataList) == 4:	#no parameters need to input
-				return bufDataList
-				
-			print "Enter 'r' to input again, else to use history input."
-			r = self._input_get_raw_in('>> ')
-			if r != "r":
-				return bufDataList
-		else:
-			has_no_buffer = True
+		has_buffer = False
 		
 		for item in self._cmdList:
 			if item._name == cmdStr:
+				if bufDataList != None:
+					has_buffer = True
+					#means has buffer data
+					if len(bufDataList) == 4:	#no parameters need to input
+						return bufDataList
+					offset = 4 #skip header, 1B(type) +  2B(oprCode) + 1B(len)
+					if item._paraCounts > 0:
+						print "Default parameters:"
+						print "-----------------------------------------"
+						for i in range(item._paraCounts):
+							#for j in range(item._paraSizeLists[i]):
+							print "\t%s : %s" % (item._paraNameLists[i], list(reversed(bufDataList[offset:offset+item._paraSizeLists[i]])))
+							offset += item._paraSizeLists[i]
+						print "-----------------------------------------"
+					print "Enter 'r' to input again, else to use history input."
+					r = self._input_get_raw_in('# ')
+					if r != "r":
+						return bufDataList
+				
 				outputList.append(hex(item._type))
 				outputList.append(hex(item._oprCode & 0xff))	#lsb
 				outputList.append(hex(item._oprCode >> 8))		#msb
 				outputList.append(hex(item._paraLens))			#count
-
-				if has_no_buffer == True:
-					print "Enter 'r' to input data, else to use default input(all value: 0x0)."
-					r = self._input_get_raw_in('>> ')
-					if r != "r":
-						if item._paraCounts > 0:
-							allLen = 0
-							for i in range(item._paraCounts):
-								allLen += item._paraSizeLists[i]
-							for i in range(allLen):
-								outputList.append('0x0')
-						break
 				
 				if item._paraCounts > 0:
-					if has_no_buffer == True:
+					if has_buffer == False:
 						print "Enter 'r' to input data, else to use default input(all value: 0x0)."
-						r = self._input_get_raw_in('>> ')
+						r = self._input_get_raw_in('# ')
 						if r != "r":
 							allLen = 0
 							for i in range(item._paraCounts):
 								allLen += item._paraSizeLists[i]
 							for i in range(allLen):
-								outputList.append('0x0')
-						break
-	
+								outputList.append('0x00')
+							break
+
 					while True:
 						paraByteList = []
 						need_input_again = False

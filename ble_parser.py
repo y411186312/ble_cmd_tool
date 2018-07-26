@@ -2,9 +2,11 @@ import sys,os,time,binascii,json
 import ble_common_class as comm_cls
 import ble_load_data as load_func
 
+
+
 #sepc LE_subevent_code.json
 class parserOprClass:
-	def __init__(self, resourceFolder, bleSubEventCodeJsonFilePath, connectionList, advDevList):
+	def __init__(self, linkBufObj, resourceFolder, bleSubEventCodeJsonFilePath, connectionList, advDevList):
 		self._cmdsList = []
 		self._returnPsList = []
 		self._eventsList = []
@@ -13,7 +15,7 @@ class parserOprClass:
 		
 		self._resFolder = resourceFolder
 		self._subEvtCodeJsonPath = bleSubEventCodeJsonFilePath
-		
+		self._linkBufObj = linkBufObj
 	def _parser_init(self):
 		#1. load cmds and returnPs
 		self._cmdsList,self._returnPsList = load_func.load_cmds_and_ret_parameters(self._resFolder)
@@ -311,8 +313,14 @@ class parserOprClass:
 		#2. private opr
 		connectHandle = int(dataList[4], 16) & 0xff
 		connectHandle |= ((int(dataList[5], 16) & 0x7) << 8)
+		
+		numOfComplete = int(dataList[6], 16) & 0xff
+		numOfComplete |= ((int(dataList[7], 16) & 0x7) << 8)
+		
+		
 		for i in range(len(self._connectionList)):
 			if self._connectionList[i]._connectHandle == connectHandle:
+				self._connectionList[i]._NumOfCompletePackets = numOfComplete
 				self._connectionList[i]._sendComplete = True
 				break
 		
@@ -341,6 +349,7 @@ class parserOprClass:
 		connectHandle |= ((int(dataList[5], 16) & 0x7) << 8) #12 bits
 		for i in range(len(self._connectionList)):
 			if self._connectionList[i]._connectHandle == connectHandle:
+				self._connectionList[i]._sendThreadQuit = True
 				print "Disconnect from bd_addr : %s" % (str(self._connectionList[i]._bdAddr))
 				self._connectionList.remove(self._connectionList[i])
 				break	#remove disconnect handle
@@ -368,27 +377,37 @@ class parserOprClass:
 		#2. parser detail return parameters
 		oprCode = int(dataList[4], 16) & 0xff
 		oprCode |= ((int(dataList[5], 16) & 0xff) << 8)
+		
+		if oprCode == 0:
+			outStr = outStr + "\n\t" + "Cmd name : No Operation"
+			outStr = outStr + "\n\t" + "Num_HCI_Command_Packets : %s" % str(dataList[3:4])
+			outStr = outStr + "\n\t" + "Command_Opcode : ['0x0', '0x0']->No Operation"
+			return [True, outStr] 
+				
 		for item in self._returnPsList:
 			if item._oprCode == oprCode:
 				hasFound = True
 				outStr = outStr + "\n\t" + "Cmd name : %s" % item._name
 				break
-			if oprCode == 0:
-				outStr = outStr + "\n\t" + "Cmd name : No Operation"
-				outStr = outStr + "\n\t" + "Num_HCI_Command_Packets : %s" % str(dataList[3:4])
-				outStr = outStr + "\n\t" + "Command_Opcode : ['0x0', '0x0']->No Operation"
-				return [True, outStr] 
-			#"""
-			if oprCode == 0x0c03:
-				for i in range(len(self._connectionList)):
-					print "remove........"
-					self._connectionList.remove(self._connectionList[0])
-					#remove all connection handle
-			#"""
+			
 		if hasFound == False:
 			outStr = outStr + "\n\t" + "Failed to parse packet, error oprcode or db is empty."
 			return [False, outStr] 
 		
+		#"""
+		if oprCode == 0x0c03:
+			for i in range(len(self._connectionList)):
+				print "remove........"
+				self._connectionList.remove(self._connectionList[0])
+				#remove all connection handle
+		#"""			
+		if oprCode == 0x2002:
+			self._linkBufObj._bufSize = int(dataList[7], 16) & 0xff
+			self._linkBufObj._bufSize |= ((int(dataList[8], 16) & 0xff) <<8)
+			self._linkBufObj._bufNum = int(dataList[9], 16) & 0xff
+			#print "buffer_size = ", self._linkBufObj._bufSize
+			#print "buffer_num = ", self._linkBufObj._bufNum
+			
 		for i in range(len(item._paraNameLists)):
 			size = item._paraSizeLists[i]
 			outStr = outStr + "\n\t" + "%s : %s" % (item._paraNameLists[i], str(dataList[offset:offset+size]))
