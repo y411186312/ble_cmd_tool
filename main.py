@@ -11,6 +11,7 @@ UART_CONFIG_PATH="configs\\uart_conf.json"
 BLE_SUBEVT_CODE_JSON_PATH="configs\\LE_subevent_code.json"
 CMD_BUFFER_FILE="configs\\btc_command_history.ini"
 DEBUG_FLAG=False
+ble_run_cmds_power_on_list = ['hci_le_read_buffer_size'] #no input args
 
 def global_init(mainObj):
 	if mainObj._logClsObj._log_init() == False:
@@ -38,13 +39,30 @@ def global_init(mainObj):
 #end_function
 
 def global_close(mainObj):
-	mainObj._logClsObj._log_close()
-	mainObj._uartClsObj._uart_close()
-	mainObj._parserClsObj._parser_close()
-	mainObj._cmdBufClsObj._cmd_buf_close()
 	mainObj._inputClsObj._input_close()
+	mainObj._cmdBufClsObj._cmd_buf_close()
+	mainObj._parserClsObj._parser_close()
+	mainObj._uartClsObj._uart_close()
+	mainObj._logClsObj._log_close()
+	
 #end_function	
 
+
+def ble_device_init(mainArgObj):
+	#print "len:", len(ble_run_cmds_power_on_list)
+	for i in range(len(ble_run_cmds_power_on_list)):
+		txDataList = mainArgObj._inputClsObj._input_get_input_data(ble_run_cmds_power_on_list[i], None)
+		if txDataList == None or len(txDataList) == 0:	#do nothing
+			print "Failed to _input_get_input_data."
+			return False
+
+		#print "send....."
+		if mainArgObj._uartClsObj._uart_send(txDataList) == False:
+			print "Failed to _uart_send."
+			return False			
+		
+	return True
+	
 def main(argv):
 	ret = False
 	exit_app = False
@@ -73,8 +91,10 @@ def main(argv):
 	mainArgObj._inputClsObj._input_add_cmd_name("acl_transfer")
 	mainArgObj._inputClsObj._input_add_cmd_name("adv_list")
 	
+	
+	
 	#2. Create Process to display event/acl data
-	os.system("cmd/c start ble_event_transfer.exe")
+	os.system("cmd/c start ble_event_transfer.py")
 	time.sleep(0.2)
 	
 	#3. Create thread
@@ -95,6 +115,18 @@ def main(argv):
 											mainArgObj._debugClsObj))
 	uartRecvThread.start()
 	parserThread.start()
+	
+	if ble_device_init(mainArgObj) == False:
+		mainArgObj._ctlThreadObj._allThreadQuit = True
+		print "Failed to call ble_device_init."
+		exit_app = True
+		
+	#time.sleep(0.2)
+	#print "ble device link acl buf size:", mainArgObj._linkBufObj._bufSize
+	#print "ble device link acl num of buf:", mainArgObj._linkBufObj._bufNum
+	
+
+			
 	
 	while exit_app == False:
 		#get user in, and process
@@ -167,15 +199,16 @@ def main(argv):
 				tempStr = mainArgObj._parser2MainQueue.get()
 			mainArgObj._logClsObj._log_write('\n' + '[ ' + str(datetime.datetime.now()) + ' ] TX ----> cmd : %s\n'% user_in + "\n\tCmd Data:" + ','.join(sendDataList))
 			print "\nCmd Send Packet Len: ", len(sendDataList)
-			print "Cmd Send Data List: \n[\n"
+			print "Cmd Send Data List: \n[",
 			for i in range(len(sendDataList)):
-				if i % 8 == 0 and i != 0:
-					print "\n\t"
-				print "  %s" % sendDataList[i],
-			print "\n]\n"
+				print "%.2x " % int(sendDataList[i], 16),
+			print "]\n"
 			
 			#3. send cmd
-			mainArgObj._uartClsObj._uart_send(sendDataList)
+			if mainArgObj._uartClsObj._uart_send(sendDataList) == False:
+				exit_app = True
+				print "Error to tx by uart"
+				break
 			
 			#4. wait result, maybe timeout.
 			try:
@@ -194,13 +227,14 @@ def main(argv):
 	#end_while
 	
 	#wait child thread to quit
+	mainArgObj._socketClientObj._sockClient.sendto("exit", mainArgObj._socketClientObj._rateSockAddr)
+	mainArgObj._socketClientObj._sockClient.sendto("exit", mainArgObj._socketClientObj._displaySockAddr)
 	print "main wait..."
 	mainArgObj._logClsObj._log_write('\n' + '<------------ app exit ------------>') 
 	uartRecvThread.join()
 	parserThread.join()
 	global_close(mainArgObj)
-	mainArgObj._socketClientObj._sockClient.sendto("exit", mainArgObj._socketClientObj._rateSockAddr)
-	mainArgObj._socketClientObj._sockClient.sendto("exit", mainArgObj._socketClientObj._displaySockAddr)
+	
 	
 #end_function	
 	
